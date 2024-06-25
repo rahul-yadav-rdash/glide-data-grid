@@ -51,6 +51,7 @@ export const RowMarkers: React.VFC<RowMarkersProps> = p => {
                 headerTheme: {
                     textMedium: "rgba(51, 51, 51, 0.50)",
                 },
+                canSelect: row => row % 2 === 0,
             }}
             columns={cols}
             rows={400}
