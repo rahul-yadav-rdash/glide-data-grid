@@ -1,17 +1,17 @@
 /* eslint-disable sonarjs/no-duplicate-string */
 /* eslint-disable unicorn/no-for-loop */
-import { type Rectangle } from "../data-grid-types.js";
-import { CellSet } from "../cell-set.js";
-import { getEffectiveColumns, type MappedGridColumn, rectBottomRight } from "./data-grid-lib.js";
-import { blend } from "../color-parser.js";
 import { assert } from "../../../common/support.js";
-import type { DrawGridArg } from "./draw-grid-arg.js";
-import { walkColumns, walkGroups, walkRowsInCol } from "./data-grid-render.walk.js";
+import { CellSet } from "../cell-set.js";
+import { blend } from "../color-parser.js";
+import { type Rectangle } from "../data-grid-types.js";
+import { getEffectiveColumns, rectBottomRight, type MappedGridColumn } from "./data-grid-lib.js";
+import { blitLastFrame, blitResizedCol, computeCanBlit } from "./data-grid-render.blit.js";
 import { drawCells } from "./data-grid-render.cells.js";
 import { drawGridHeaders } from "./data-grid-render.header.js";
-import { drawGridLines, overdrawStickyBoundaries, drawBlanks, drawExtraRowThemes } from "./data-grid-render.lines.js";
-import { blitLastFrame, blitResizedCol, computeCanBlit } from "./data-grid-render.blit.js";
-import { drawHighlightRings, drawFillHandle, drawColumnResizeOutline } from "./data-grid.render.rings.js";
+import { drawBlanks, drawExtraRowThemes, drawGridLines, overdrawStickyBoundaries } from "./data-grid-render.lines.js";
+import { walkColumns, walkGroups, walkRowsInCol } from "./data-grid-render.walk.js";
+import { drawColumnResizeOutline, drawFillHandle, drawHighlightRings } from "./data-grid.render.rings.js";
+import type { DrawGridArg } from "./draw-grid-arg.js";
 
 // Future optimization opportunities
 // - Create a cache of a buffer used to render the full view of a partially displayed column so that when
@@ -33,6 +33,7 @@ function clipHeaderDamage(
     translateX: number,
     translateY: number,
     cellYOffset: number,
+    freezeTrailingColumns: number,
     damage: CellSet | undefined
 ): void {
     if (damage === undefined || damage.size === 0) return;
@@ -53,10 +54,12 @@ function clipHeaderDamage(
 
     walkColumns(
         effectiveColumns,
+        width,
         cellYOffset,
         translateX,
         translateY,
         totalHeaderHeight,
+        freezeTrailingColumns,
         (c, drawX, _colDrawY, clipX) => {
             const diff = Math.max(0, clipX - drawX);
 
@@ -73,6 +76,7 @@ function clipHeaderDamage(
 function getLastRow(
     effectiveColumns: readonly MappedGridColumn[],
     height: number,
+    width: number,
     totalHeaderHeight: number,
     translateX: number,
     translateY: number,
@@ -80,15 +84,18 @@ function getLastRow(
     rows: number,
     getRowHeight: (row: number) => number,
     freezeTrailingRows: number,
-    hasAppendRow: boolean
+    hasAppendRow: boolean,
+    freezeTrailingColumns: number
 ): number {
     let result = 0;
     walkColumns(
         effectiveColumns,
+        width,
         cellYOffset,
         translateX,
         translateY,
         totalHeaderHeight,
+        freezeTrailingColumns,
         (_c, __drawX, colDrawY, _clipX, startRow) => {
             walkRowsInCol(
                 startRow,
@@ -256,7 +263,14 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
         targetCtx.scale(dpr, dpr);
     }
 
-    const effectiveCols = getEffectiveColumns(mappedColumns, cellXOffset, width, dragAndDropState, translateX);
+    const effectiveCols = getEffectiveColumns(
+        mappedColumns,
+        cellXOffset,
+        width,
+        freezeColumns,
+        dragAndDropState,
+        translateX
+    );
 
     let drawRegions: Rectangle[] = [];
 
@@ -290,7 +304,8 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
             getGroupDetails,
             damage,
             drawHeaderCallback,
-            touchMode
+            touchMode,
+            freezeRightColumns
         );
 
         drawGridLines(
@@ -360,6 +375,7 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
                 getRowHeight,
                 getCellContent,
                 freezeTrailingRows,
+                freezeRightColumns,
                 hasAppendRow,
                 fillHandle,
                 rows
@@ -410,6 +426,7 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
                 effectiveCols,
                 mappedColumns,
                 height,
+                width,
                 totalHeaderHeight,
                 translateX,
                 translateY,
@@ -423,6 +440,7 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
                 isFocused,
                 drawFocus,
                 freezeTrailingRows,
+                freezeRightColumns,
                 hasAppendRow,
                 drawRegions,
                 damage,
@@ -466,6 +484,7 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
                     getRowHeight,
                     getCellContent,
                     freezeTrailingRows,
+                    freezeRightColumns,
                     hasAppendRow,
                     fillHandle,
                     rows
@@ -494,6 +513,7 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
                     translateX,
                     translateY,
                     cellYOffset,
+                    freezeRightColumns,
                     damage
                 );
                 drawHeaderTexture();
@@ -553,7 +573,8 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
             height,
             totalHeaderHeight,
             effectiveCols,
-            resizedCol
+            resizedCol,
+            freezeRightColumns
         );
     }
 
@@ -605,6 +626,7 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
               getRowHeight,
               getCellContent,
               freezeTrailingRows,
+              freezeRightColumns,
               hasAppendRow,
               fillHandle,
               rows
@@ -629,6 +651,7 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
         effectiveCols,
         mappedColumns,
         height,
+        width,
         totalHeaderHeight,
         translateX,
         translateY,
@@ -642,6 +665,7 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
         isFocused,
         drawFocus,
         freezeTrailingRows,
+        freezeRightColumns,
         hasAppendRow,
         drawRegions,
         damage,
@@ -678,6 +702,7 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
         selection.rows,
         disabledRows,
         freezeTrailingRows,
+        freezeRightColumns,
         hasAppendRow,
         drawRegions,
         damage,
@@ -726,7 +751,7 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
     focusRedraw?.();
 
     if (isResizing && resizeIndicator !== "none") {
-        walkColumns(effectiveCols, 0, translateX, 0, totalHeaderHeight, (c, x) => {
+        walkColumns(effectiveCols, width, 0, translateX, 0, totalHeaderHeight, freezeRightColumns, (c, x) => {
             if (c.sourceIndex === resizeCol) {
                 drawColumnResizeOutline(
                     overlayCtx,
@@ -759,6 +784,7 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
     const lastRowDrawn = getLastRow(
         effectiveCols,
         height,
+        width,
         totalHeaderHeight,
         translateX,
         translateY,
@@ -766,7 +792,8 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
         rows,
         getRowHeight,
         freezeTrailingRows,
-        hasAppendRow
+        hasAppendRow,
+        freezeRightColumns
     );
 
     imageLoader?.setWindow(

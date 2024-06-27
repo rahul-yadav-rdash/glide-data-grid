@@ -187,6 +187,7 @@ export function drawFillHandle(
     getRowHeight: (row: number) => number,
     getCellContent: (cell: Item) => InnerGridCell,
     freezeTrailingRows: number,
+    freezeTrailingColumns: number,
     hasAppendRow: boolean,
     fillHandle: boolean,
     rows: number
@@ -218,10 +219,12 @@ export function drawFillHandle(
 
     walkColumns(
         effectiveCols,
+        width,
         cellYOffset,
         translateX,
         translateY,
         totalHeaderHeight,
+        freezeTrailingColumns,
         (col, drawX, colDrawY, clipX, startRow) => {
             clipX;
             if (col.sticky && targetCol > col.sourceIndex) return;

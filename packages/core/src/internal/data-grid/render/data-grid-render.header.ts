@@ -5,14 +5,14 @@ import type { HoverValues } from "../animation-manager.js";
 import type { CellSet } from "../cell-set.js";
 import { withAlpha } from "../color-parser.js";
 import type { SpriteManager, SpriteVariant } from "../data-grid-sprites.js";
-import { type DrawHeaderCallback, type Rectangle, GridColumnMenuIcon, type GridSelection } from "../data-grid-types.js";
+import { GridColumnMenuIcon, type DrawHeaderCallback, type GridSelection, type Rectangle } from "../data-grid-types.js";
 import {
     drawMenuDots,
+    getMeasuredTextCache,
     getMiddleCenterBias,
+    measureTextCached,
     roundedPoly,
     type MappedGridColumn,
-    measureTextCached,
-    getMeasuredTextCache,
 } from "./data-grid-lib.js";
 import type { GroupDetails, GroupDetailsCallback } from "./data-grid-render.cells.js";
 import { walkColumns, walkGroups } from "./data-grid-render.walk.js";
@@ -38,7 +38,8 @@ export function drawGridHeaders(
     getGroupDetails: GroupDetailsCallback,
     damage: CellSet | undefined,
     drawHeaderCallback: DrawHeaderCallback | undefined,
-    touchMode: boolean
+    touchMode: boolean,
+    freezeTrailingColumns: number
 ) {
     const totalHeaderHeight = headerHeight + groupHeaderHeight;
     if (totalHeaderHeight <= 0) return;
@@ -54,7 +55,7 @@ export function drawGridHeaders(
     const font = outerTheme.headerFontFull;
     // Assinging the context font too much can be expensive, it can be worth it to minimze this
     ctx.font = font;
-    walkColumns(effectiveCols, 0, translateX, 0, totalHeaderHeight, (c, x, _y, clipX) => {
+    walkColumns(effectiveCols, width, 0, translateX, 0, totalHeaderHeight, freezeTrailingColumns, (c, x, _y, clipX) => {
         if (damage !== undefined && !damage.has([c.sourceIndex, -1])) return;
         const diff = Math.max(0, clipX - x);
         ctx.save();

@@ -1,5 +1,5 @@
 import { type Item, type Rectangle } from "../data-grid-types.js";
-import { type MappedGridColumn, isGroupEqual } from "./data-grid-lib.js";
+import { isGroupEqual, type MappedGridColumn } from "./data-grid-lib.js";
 
 export function getSkipPoint(drawRegions: readonly Rectangle[]): number | undefined {
     if (drawRegions.length === 0) return undefined;
@@ -64,16 +64,20 @@ export type WalkColsCallback = (
 
 export function walkColumns(
     effectiveCols: readonly MappedGridColumn[],
+    width: number,
     cellYOffset: number,
     translateX: number,
     translateY: number,
     totalHeaderHeight: number,
+    freezeTrailingColumns: number,
     cb: WalkColsCallback
 ): void {
     let x = 0;
     let clipX = 0; // this tracks the total width of sticky cols
     const drawY = totalHeaderHeight + translateY;
-    for (const c of effectiveCols) {
+
+    for (let i = 0; i < effectiveCols.length - freezeTrailingColumns; i++) {
+        const c = effectiveCols[i];
         const drawX = c.sticky ? clipX : x + translateX;
         if (cb(c, drawX, drawY, c.sticky ? 0 : clipX, cellYOffset) === true) {
             break;
@@ -81,6 +85,15 @@ export function walkColumns(
 
         x += c.width;
         clipX += c.sticky ? c.width : 0;
+    }
+
+    x = width;
+    for (let fc = 0; fc < freezeTrailingColumns; fc++) {
+        const c = effectiveCols[effectiveCols.length - 1 - fc];
+        const drawX = x - c.width;
+
+        x -= c.width;
+        cb(c, drawX, drawY, clipX, cellYOffset);
     }
 }
 

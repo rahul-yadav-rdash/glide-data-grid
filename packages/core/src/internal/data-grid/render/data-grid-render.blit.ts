@@ -200,7 +200,8 @@ export function blitResizedCol(
     height: number,
     totalHeaderHeight: number,
     effectiveCols: readonly MappedGridColumn[],
-    resizedIndex: number
+    resizedIndex: number,
+    freezeTrailingColumns: number
 ) {
     const drawRegions: Rectangle[] = [];
 
@@ -215,18 +216,27 @@ export function blitResizedCol(
         return drawRegions;
     }
 
-    walkColumns(effectiveCols, cellYOffset, translateX, translateY, totalHeaderHeight, (c, drawX, _drawY, clipX) => {
-        if (c.sourceIndex === resizedIndex) {
-            const x = Math.max(drawX, clipX) + 1;
-            drawRegions.push({
-                x,
-                y: 0,
-                width: width - x,
-                height,
-            });
-            return true;
+    walkColumns(
+        effectiveCols,
+        width,
+        cellYOffset,
+        translateX,
+        translateY,
+        totalHeaderHeight,
+        freezeTrailingColumns,
+        (c, drawX, _drawY, clipX) => {
+            if (c.sourceIndex === resizedIndex) {
+                const x = Math.max(drawX, clipX) + 1;
+                drawRegions.push({
+                    x,
+                    y: 0,
+                    width: width - x,
+                    height,
+                });
+                return true;
+            }
         }
-    });
+    );
     return drawRegions;
 }
 

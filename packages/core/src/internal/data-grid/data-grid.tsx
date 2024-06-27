@@ -513,7 +513,14 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
             const y = (posY - rect.top) / scale;
             const edgeDetectionBuffer = 5;
 
-            const effectiveCols = getEffectiveColumns(mappedColumns, cellXOffset, width, undefined, translateX);
+            const effectiveCols = getEffectiveColumns(
+                mappedColumns,
+                cellXOffset,
+                width,
+                freezeColumns,
+                undefined,
+                translateX
+            );
 
             let button = 0;
             let buttons = 0;
@@ -1723,7 +1730,14 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
     const accessibilityTree = useDebouncedMemo(
         () => {
             if (width < 50 || experimental?.disableAccessibilityTree === true) return null;
-            let effectiveCols = getEffectiveColumns(mappedColumns, cellXOffset, width, dragAndDropState, translateX);
+            let effectiveCols = getEffectiveColumns(
+                mappedColumns,
+                cellXOffset,
+                width,
+                freezeColumns,
+                dragAndDropState,
+                translateX
+            );
             const colOffset = firstColAccessible ? 0 : -1;
             if (!firstColAccessible && effectiveCols[0]?.sourceIndex === 0) {
                 effectiveCols = effectiveCols.slice(1);
@@ -1857,6 +1871,7 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
             onKeyDown,
             getBoundsForItem,
             onCellFocused,
+            freezeColumns,
         ],
         200
     );

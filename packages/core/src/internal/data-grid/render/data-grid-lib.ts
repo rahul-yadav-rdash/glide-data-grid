@@ -39,13 +39,9 @@ export function useMappedColumns(
                     menuIcon: c.menuIcon,
                     overlayIcon: c.overlayIcon,
                     sourceIndex: i,
-                    sticky: i < freezeColumnsLeft || i >= columns.length - freezeColumnsRight - 2,
+                    sticky: i < freezeColumnsLeft || i >= columns.length - freezeColumnsRight,
                     stickyPosition:
-                        i < freezeColumnsLeft
-                            ? "left"
-                            : i >= columns.length - freezeColumnsRight - 2
-                            ? "right"
-                            : undefined,
+                        i < freezeColumnsLeft ? "left" : i >= columns.length - freezeColumnsRight ? "right" : undefined,
                     indicatorIcon: c.indicatorIcon,
                     style: c.style,
                     themeOverride: c.themeOverride,
@@ -227,6 +223,7 @@ export function getEffectiveColumns(
     columns: readonly MappedGridColumn[],
     cellXOffset: number,
     width: number,
+    freezeColumns: number | [left: number, right: number],
     dndState?: {
         src: number;
         dest: number;
@@ -235,13 +232,12 @@ export function getEffectiveColumns(
 ): readonly MappedGridColumn[] {
     const mappedCols = remapForDnDState(columns, dndState);
 
+    const freezeLeftColumns = typeof freezeColumns === "number" ? freezeColumns : freezeColumns[0];
+    const freezeRightColumns = typeof freezeColumns === "number" ? 0 : freezeColumns[1];
+
     const sticky: MappedGridColumn[] = [];
-    for (const c of mappedCols) {
-        if (c.sticky) {
-            sticky.push(c);
-        } else {
-            break;
-        }
+    for (let i = 0; i < freezeLeftColumns; i++) {
+        sticky.push(mappedCols[i]);
     }
 
     if (sticky.length > 0) {
@@ -264,10 +260,8 @@ export function getEffectiveColumns(
         }
     }
 
-    for (let i = mappedCols.length - 1; i >= 0; i--) {
-        if (mappedCols[i].sticky) {
-            sticky.push(mappedCols[i]);
-        } else break;
+    for (let i = mappedCols.length - freezeRightColumns; i < mappedCols.length; i++) {
+        sticky.push(mappedCols[i]);
     }
 
     return sticky;

@@ -26,6 +26,7 @@ export function drawBlanks(
     selectedRows: CompactSelection,
     disabledRows: CompactSelection,
     freezeTrailingRows: number,
+    freezeTrailingColumns: number,
     hasAppendRow: boolean,
     drawRegions: readonly Rectangle[],
     damage: CellSet | undefined,
@@ -41,10 +42,12 @@ export function drawBlanks(
 
     walkColumns(
         effectiveColumns,
+        width,
         cellYOffset,
         translateX,
         translateY,
         totalHeaderHeight,
+        freezeTrailingColumns,
         (c, drawX, colDrawY, clipX, startRow) => {
             if (c !== effectiveColumns[effectiveColumns.length - 1]) return;
             drawX += c.width;

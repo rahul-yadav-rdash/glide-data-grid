@@ -1,38 +1,38 @@
 /* eslint-disable sonarjs/no-duplicate-string */
 /* eslint-disable unicorn/no-for-loop */
+import type { DrawArgs, DrawStateTuple, GetCellRendererCallback, PrepResult } from "../../../cells/cell-types.js";
+import { intersectRect } from "../../../common/math.js";
+import type { RenderStateProvider } from "../../../common/render-state-provider.js";
+import { mergeAndRealizeTheme, type FullTheme, type Theme } from "../../../common/styles.js";
+import type { HoverValues } from "../animation-manager.js";
+import { CellSet } from "../cell-set.js";
+import { blend } from "../color-parser.js";
+import type { SpriteManager } from "../data-grid-sprites.js";
 import {
+    CompactSelection,
+    GridCellKind,
+    GridColumnIcon,
+    isInnerOnlyCell,
+    type CellList,
+    type DrawCellCallback,
+    type GridCell,
     type GridSelection,
     type InnerGridCell,
-    type Rectangle,
-    CompactSelection,
-    GridColumnIcon,
     type Item,
-    type CellList,
-    GridCellKind,
-    type DrawCellCallback,
-    isInnerOnlyCell,
-    type GridCell,
+    type Rectangle,
 } from "../data-grid-types.js";
-import { CellSet } from "../cell-set.js";
-import type { HoverValues } from "../animation-manager.js";
-import {
-    type MappedGridColumn,
-    cellIsSelected,
-    cellIsInRange,
-    getFreezeTrailingHeight,
-    drawLastUpdateUnderlay,
-} from "./data-grid-lib.js";
-import type { SpriteManager } from "../data-grid-sprites.js";
-import { mergeAndRealizeTheme, type FullTheme, type Theme } from "../../../common/styles.js";
-import { blend } from "../color-parser.js";
-import type { DrawArgs, DrawStateTuple, GetCellRendererCallback, PrepResult } from "../../../cells/cell-types.js";
-import type { HoverInfo } from "./draw-grid-arg.js";
-import type { EnqueueCallback } from "../use-animation-queue.js";
-import type { RenderStateProvider } from "../../../common/render-state-provider.js";
-import type { ImageWindowLoader } from "../image-window-loader-interface.js";
-import { intersectRect } from "../../../common/math.js";
 import type { GridMouseGroupHeaderEventArgs } from "../event-args.js";
+import type { ImageWindowLoader } from "../image-window-loader-interface.js";
+import type { EnqueueCallback } from "../use-animation-queue.js";
+import {
+    cellIsInRange,
+    cellIsSelected,
+    drawLastUpdateUnderlay,
+    getFreezeTrailingHeight,
+    type MappedGridColumn,
+} from "./data-grid-lib.js";
 import { getSkipPoint, getSpanBounds, walkColumns, walkRowsInCol } from "./data-grid-render.walk.js";
+import type { HoverInfo } from "./draw-grid-arg.js";
 
 const loadingCell: InnerGridCell = {
     kind: GridCellKind.Loading,
@@ -77,6 +77,7 @@ export function drawCells(
     effectiveColumns: readonly MappedGridColumn[],
     allColumns: readonly MappedGridColumn[],
     height: number,
+    width: number,
     totalHeaderHeight: number,
     translateX: number,
     translateY: number,
@@ -90,6 +91,7 @@ export function drawCells(
     isFocused: boolean,
     drawFocus: boolean,
     freezeTrailingRows: number,
+    freezeTrailingColumns: number,
     hasAppendRow: boolean,
     drawRegions: readonly Rectangle[],
     damage: CellSet | undefined,
@@ -124,10 +126,12 @@ export function drawCells(
 
     walkColumns(
         effectiveColumns,
+        width,
         cellYOffset,
         translateX,
         translateY,
         totalHeaderHeight,
+        freezeTrailingColumns,
         (c, drawX, colDrawStartY, clipX, startRow) => {
             const diff = Math.max(0, clipX - drawX);
 
