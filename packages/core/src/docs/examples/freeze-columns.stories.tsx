@@ -4,8 +4,8 @@ import {
     BeautifulWrapper,
     Description,
     PropName,
-    useMockDataGenerator,
     defaultProps,
+    useMockDataGenerator,
 } from "../../data-editor/stories/utils.js";
 import { SimpleThemeWrapper } from "../../stories/story-utils.js";
 
@@ -30,23 +30,31 @@ export default {
     ],
 };
 
-export const FreezeColumns: React.VFC<any> = (p: { freezeColumns: number }) => {
+export const FreezeColumns: React.VFC<any> = (p: { freezeLeftColumns: number; freezeRightColumns: number }) => {
     const { cols, getCellContent } = useMockDataGenerator(100);
 
     return (
         <DataEditor
             {...defaultProps}
             rowMarkers="both"
-            freezeColumns={p.freezeColumns}
+            freezeColumns={[p.freezeLeftColumns, p.freezeRightColumns]}
             getCellContent={getCellContent}
             columns={cols}
-            verticalBorder={false}
+            // verticalBorder={false}
             rows={1000}
+            freezeTrailingRows={3}
         />
     );
 };
 (FreezeColumns as any).argTypes = {
-    freezeColumns: {
+    freezeLeftColumns: {
+        control: {
+            type: "range",
+            min: 0,
+            max: 10,
+        },
+    },
+    freezeRightColumns: {
         control: {
             type: "range",
             min: 0,
@@ -55,5 +63,6 @@ export const FreezeColumns: React.VFC<any> = (p: { freezeColumns: number }) => {
     },
 };
 (FreezeColumns as any).args = {
-    freezeColumns: 1,
+    freezeLeftColumns: 1,
+    freezeRightColumns: 1,
 };

@@ -1,28 +1,32 @@
 /* eslint-disable unicorn/no-for-loop */
+import { clearCache, split as splitText } from "canvas-hypertxt";
+import React from "react";
+import type { BaseDrawArgs, PrepResult } from "../../../cells/cell-types.js";
 import type { FullTheme } from "../../../common/styles.js";
+import type { FullyDefined } from "../../../common/support.js";
+import { direction } from "../../../common/utils.js";
 import {
-    type Item,
+    type BaseGridCell,
     type GridSelection,
     type InnerGridCell,
     type InnerGridColumn,
+    type Item,
     type Rectangle,
-    type BaseGridCell,
 } from "../data-grid-types.js";
-import { direction } from "../../../common/utils.js";
-import React from "react";
-import type { BaseDrawArgs, PrepResult } from "../../../cells/cell-types.js";
-import { split as splitText, clearCache } from "canvas-hypertxt";
-import type { FullyDefined } from "../../../common/support.js";
 
 export interface MappedGridColumn extends FullyDefined<InnerGridColumn> {
     sourceIndex: number;
     sticky: boolean;
+    stickyPosition: "left" | "right" | undefined;
 }
 
 export function useMappedColumns(
     columns: readonly InnerGridColumn[],
-    freezeColumns: number
+    freezeColumns: number | [left: number, right: number]
 ): readonly MappedGridColumn[] {
+    const freezeColumnsLeft = typeof freezeColumns === "number" ? freezeColumns : freezeColumns[0];
+    const freezeColumnsRight = typeof freezeColumns === "number" ? 0 : freezeColumns[1];
+
     return React.useMemo(
         () =>
             columns.map(
@@ -35,7 +39,13 @@ export function useMappedColumns(
                     menuIcon: c.menuIcon,
                     overlayIcon: c.overlayIcon,
                     sourceIndex: i,
-                    sticky: i < freezeColumns,
+                    sticky: i < freezeColumnsLeft || i >= columns.length - freezeColumnsRight - 2,
+                    stickyPosition:
+                        i < freezeColumnsLeft
+                            ? "left"
+                            : i >= columns.length - freezeColumnsRight - 2
+                            ? "right"
+                            : undefined,
                     indicatorIcon: c.indicatorIcon,
                     style: c.style,
                     themeOverride: c.themeOverride,
@@ -50,7 +60,7 @@ export function useMappedColumns(
                     headerRowMarkerDisabled: c.headerRowMarkerDisabled,
                 })
             ),
-        [columns, freezeColumns]
+        [columns, freezeColumnsLeft, freezeColumnsRight]
     );
 }
 
@@ -162,6 +172,7 @@ export function remapForDnDState(
         writable = writable.map((c, i) => ({
             ...c,
             sticky: columns[i].sticky,
+            stickyPosition: columns[i].stickyPosition,
         }));
         mappedCols = writable;
     }
@@ -174,16 +185,25 @@ export function getStickyWidth(
         src: number;
         dest: number;
     }
-): number {
-    let result = 0;
+): [left: number, right: number] {
+    let lWidth = 0;
+    let rWidth = 0;
     const remapped = remapForDnDState(columns, dndState);
     for (let i = 0; i < remapped.length; i++) {
         const c = remapped[i];
-        if (c.sticky) result += c.width;
-        else break;
+        if (c.sticky) {
+            if (c.stickyPosition === "left") lWidth += c.width;
+        } else break;
     }
 
-    return result;
+    for (let i = remapped.length - 1; i >= 0; i--) {
+        const c = remapped[i];
+        if (c.sticky) {
+            if (c.stickyPosition === "right") rWidth += c.width;
+        } else break;
+    }
+
+    return [lWidth, rWidth];
 }
 
 export function getFreezeTrailingHeight(
@@ -202,6 +222,7 @@ export function getFreezeTrailingHeight(
     }
 }
 
+// need to explore this function
 export function getEffectiveColumns(
     columns: readonly MappedGridColumn[],
     cellXOffset: number,
@@ -222,6 +243,7 @@ export function getEffectiveColumns(
             break;
         }
     }
+
     if (sticky.length > 0) {
         for (const c of sticky) {
             width -= c.width;
@@ -242,22 +264,44 @@ export function getEffectiveColumns(
         }
     }
 
+    for (let i = mappedCols.length - 1; i >= 0; i--) {
+        if (mappedCols[i].sticky) {
+            sticky.push(mappedCols[i]);
+        } else break;
+    }
+
     return sticky;
 }
 
 export function getColumnIndexForX(
     targetX: number,
     effectiveColumns: readonly MappedGridColumn[],
+    freezeColumns: number | [left: number, right: number],
+    width: number,
     translateX?: number
 ): number {
+    const freezeRightColumns = typeof freezeColumns === "number" ? 0 : freezeColumns[1];
+
+    let y = width;
+    for (let fc = 0; fc < freezeRightColumns; fc++) {
+        const colIdx = effectiveColumns.length - 1 - fc;
+        const col = effectiveColumns[colIdx];
+        y -= col.width;
+        if (targetX <= y) {
+            return col.sourceIndex;
+        }
+    }
+
     let x = 0;
-    for (const c of effectiveColumns) {
+    for (let i = 0; i < effectiveColumns.length - freezeRightColumns; i++) {
+        const c = effectiveColumns[i];
         const cx = c.sticky ? x : x + (translateX ?? 0);
         if (targetX <= cx + c.width) {
             return c.sourceIndex;
         }
         x += c.width;
     }
+
     return -1;
 }
 
@@ -748,6 +792,7 @@ export function roundedPoly(ctx: CanvasRenderingContext2D, points: Point[], radi
     ctx.closePath();
 }
 
+// need to explore this function more
 export function computeBounds(
     col: number,
     row: number,
@@ -760,7 +805,7 @@ export function computeBounds(
     translateX: number,
     translateY: number,
     rows: number,
-    freezeColumns: number,
+    freezeColumns: number | [left: number, right: number],
     freezeTrailingRows: number,
     mappedColumns: readonly MappedGridColumn[],
     rowHeight: number | ((index: number) => number)
@@ -772,16 +817,19 @@ export function computeBounds(
         height: 0,
     };
 
+    const freezeLeftColumns = typeof freezeColumns === "number" ? freezeColumns : freezeColumns[0];
+    const freezeRightColumns = typeof freezeColumns === "number" ? 0 : freezeColumns[1];
+
     if (col >= mappedColumns.length || row >= rows || row < -2 || col < 0) {
         return result;
     }
 
     const headerHeight = totalHeaderHeight - groupHeaderHeight;
 
-    if (col >= freezeColumns) {
+    if (col >= freezeLeftColumns) {
         const dir = cellXOffset > col ? -1 : 1;
-        const freezeWidth = getStickyWidth(mappedColumns);
-        result.x += freezeWidth + translateX;
+        const [freezeLeftWidth, freezeRightWidth] = getStickyWidth(mappedColumns);
+        result.x += freezeLeftWidth + translateX;
         for (let i = cellXOffset; i !== col; i += dir) {
             result.x += mappedColumns[dir === 1 ? i : i - 1].width * dir;
         }
@@ -824,8 +872,8 @@ export function computeBounds(
             end++;
         }
         if (!sticky) {
-            const freezeWidth = getStickyWidth(mappedColumns);
-            const clip = result.x - freezeWidth;
+            const [freezeLeftWidth, freezeRightWidth] = getStickyWidth(mappedColumns);
+            const clip = result.x - freezeLeftWidth;
             if (clip < 0) {
                 result.x -= clip;
                 result.width += clip;

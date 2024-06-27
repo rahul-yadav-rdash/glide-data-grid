@@ -171,6 +171,9 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
     const doubleBuffer = renderStrategy === "double-buffer";
     const dpr = Math.min(maxScaleFactor, Math.ceil(window.devicePixelRatio ?? 1));
 
+    const freezeLeftColumns = typeof freezeColumns === "number" ? freezeColumns : freezeColumns[0];
+    const freezeRightColumns = typeof freezeColumns === "number" ? 0 : freezeColumns[1];
+
     // if we are double buffering we need to make sure we can blit. If we can't we need to redraw the whole thing
     const canBlit = renderStrategy !== "direct" && computeCanBlit(arg, lastArg);
 
@@ -383,13 +386,13 @@ export function drawGrid(arg: DrawGridArg, lastArg: DrawGridArg | undefined) {
             {
                 x: 0,
                 y: cellYOffset,
-                width: freezeColumns,
+                width: freezeLeftColumns,
                 height: 300,
             },
             {
                 x: 0,
                 y: -2,
-                width: freezeColumns,
+                width: freezeLeftColumns,
                 height: 2,
             },
             {

@@ -1,5 +1,42 @@
+import clamp from "lodash/clamp.js";
+import makeRange from "lodash/range.js";
 import * as React from "react";
+import type { CellRenderer, GetCellRendererCallback } from "../../cells/cell-types.js";
+import { browserIsFirefox, browserIsSafari } from "../../common/browser-detect.js";
+import { pointInRect } from "../../common/math.js";
+import { RenderStateProvider, packColRowToNumber } from "../../common/render-state-provider.js";
 import type { FullTheme } from "../../common/styles.js";
+import { assert } from "../../common/support.js";
+import { direction, getScrollBarWidth, useDebouncedMemo, useEventListener } from "../../common/utils.js";
+import { AnimationManager, type StepCallback } from "./animation-manager.js";
+import { CellSet } from "./cell-set.js";
+import { SpriteManager, type SpriteMap } from "./data-grid-sprites.js";
+import {
+    CompactSelection,
+    GridCellKind,
+    InnerGridCellKind,
+    booleanCellIsEditable,
+    isInnerOnlyCell,
+    isReadWriteCell,
+    type DrawCellCallback,
+    type DrawHeaderCallback,
+    type GridSelection,
+    type InnerGridCell,
+    type InnerGridColumn,
+    type Item,
+    type Rectangle,
+} from "./data-grid-types.js";
+import {
+    OutOfBoundsRegionAxis,
+    groupHeaderKind,
+    headerKind,
+    mouseEventArgsAreEqual,
+    outOfBoundsKind,
+    type GridDragEventArgs,
+    type GridKeyEventArgs,
+    type GridMouseEventArgs,
+} from "./event-args.js";
+import type { ImageWindowLoader } from "./image-window-loader-interface.js";
 import {
     computeBounds,
     getColumnIndexForX,
@@ -9,54 +46,17 @@ import {
     rectBottomRight,
     useMappedColumns,
 } from "./render/data-grid-lib.js";
-import {
-    GridCellKind,
-    type Rectangle,
-    type GridSelection,
-    type InnerGridCell,
-    InnerGridCellKind,
-    CompactSelection,
-    type Item,
-    type DrawHeaderCallback,
-    isReadWriteCell,
-    isInnerOnlyCell,
-    booleanCellIsEditable,
-    type InnerGridColumn,
-    type DrawCellCallback,
-} from "./data-grid-types.js";
-import { CellSet } from "./cell-set.js";
-import { SpriteManager, type SpriteMap } from "./data-grid-sprites.js";
-import { direction, getScrollBarWidth, useDebouncedMemo, useEventListener } from "../../common/utils.js";
-import clamp from "lodash/clamp.js";
-import makeRange from "lodash/range.js";
-import { drawGrid } from "./render/data-grid-render.js";
 import { type BlitData } from "./render/data-grid-render.blit.js";
-import { AnimationManager, type StepCallback } from "./animation-manager.js";
-import { RenderStateProvider, packColRowToNumber } from "../../common/render-state-provider.js";
-import { browserIsFirefox, browserIsSafari } from "../../common/browser-detect.js";
-import { type EnqueueCallback, useAnimationQueue } from "./use-animation-queue.js";
-import { assert } from "../../common/support.js";
-import type { CellRenderer, GetCellRendererCallback } from "../../cells/cell-types.js";
-import type { DrawGridArg } from "./render/draw-grid-arg.js";
-import type { ImageWindowLoader } from "./image-window-loader-interface.js";
 import {
-    type GridMouseEventArgs,
-    type GridKeyEventArgs,
-    type GridDragEventArgs,
-    OutOfBoundsRegionAxis,
-    outOfBoundsKind,
-    groupHeaderKind,
-    headerKind,
-    mouseEventArgsAreEqual,
-} from "./event-args.js";
-import { pointInRect } from "../../common/math.js";
-import {
-    type GroupDetailsCallback,
-    type GetRowThemeCallback,
-    type Highlight,
     drawCell,
+    type GetRowThemeCallback,
+    type GroupDetailsCallback,
+    type Highlight,
 } from "./render/data-grid-render.cells.js";
-import { getActionBoundsForGroup, drawHeader, computeHeaderLayout } from "./render/data-grid-render.header.js";
+import { computeHeaderLayout, drawHeader, getActionBoundsForGroup } from "./render/data-grid-render.header.js";
+import { drawGrid } from "./render/data-grid-render.js";
+import type { DrawGridArg } from "./render/draw-grid-arg.js";
+import { useAnimationQueue, type EnqueueCallback } from "./use-animation-queue.js";
 
 export interface DataGridProps {
     readonly width: number;
@@ -70,7 +70,7 @@ export interface DataGridProps {
 
     readonly accessibilityHeight: number;
 
-    readonly freezeColumns: number;
+    readonly freezeColumns: number | [left: number, right: number];
     readonly freezeTrailingRows: number;
     readonly hasAppendRow: boolean;
     readonly firstColAccessible: boolean;
@@ -393,7 +393,9 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
     } = p;
     const translateX = p.translateX ?? 0;
     const translateY = p.translateY ?? 0;
-    const cellXOffset = Math.max(freezeColumns, Math.min(columns.length - 1, cellXOffsetReal));
+    const freezeLeftColumns = typeof freezeColumns === "number" ? freezeColumns : freezeColumns[0];
+    const freezeRightColumns = typeof freezeColumns === "number" ? 0 : freezeColumns[1];
+    const cellXOffset = Math.max(freezeLeftColumns, Math.min(columns.length - 1, cellXOffsetReal));
 
     const ref = React.useRef<HTMLCanvasElement | null>(null);
     const windowEventTargetRef = React.useRef<Document | Window>(window);
@@ -440,7 +442,10 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
     }, [cellYOffset, cellXOffset, translateX, translateY, enableFirefoxRescaling, enableSafariRescaling]);
 
     const mappedColumns = useMappedColumns(columns, freezeColumns);
-    const stickyX = fixedShadowX ? getStickyWidth(mappedColumns, dragAndDropState) : 0;
+    const stickyX = React.useMemo(
+        () => (fixedShadowX ? getStickyWidth(mappedColumns, dragAndDropState) : [0, 0]),
+        [fixedShadowX, mappedColumns, dragAndDropState]
+    );
 
     // row: -1 === columnHeader, -2 === groupHeader
     const getBoundsForItem = React.useCallback(
@@ -465,7 +470,7 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
                 translateX,
                 translateY,
                 rows,
-                freezeColumns,
+                freezeLeftColumns,
                 freezeTrailingRows,
                 mappedColumns,
                 rowHeight
@@ -493,7 +498,7 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
             translateX,
             translateY,
             rows,
-            freezeColumns,
+            freezeLeftColumns,
             freezeTrailingRows,
             mappedColumns,
             rowHeight,
@@ -518,7 +523,7 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
             }
 
             // -1 === off right edge
-            const col = getColumnIndexForX(x, effectiveCols, translateX);
+            const col = getColumnIndexForX(x, effectiveCols, freezeColumns, width, translateX);
 
             // -1: header or above
             // undefined: offbottom
@@ -686,6 +691,7 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
             fillHandle,
             selection,
             totalHeaderHeight,
+            freezeColumns,
         ]
     );
 
@@ -1855,27 +1861,52 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
         200
     );
 
-    const opacityX =
-        freezeColumns === 0 || !fixedShadowX ? 0 : cellXOffset > freezeColumns ? 1 : clamp(-translateX / 100, 0, 1);
+    const opacityXLeft =
+        freezeLeftColumns === 0 || !fixedShadowX
+            ? 0
+            : cellXOffset > freezeLeftColumns
+            ? 1
+            : clamp(-translateX / 100, 0, 1);
+
+    const opacityXRight =
+        freezeRightColumns === 0 || !fixedShadowX
+            ? 0
+            : cellXOffset + width < columns.length - freezeRightColumns
+            ? 1
+            : clamp((translateX - (columns.length - freezeRightColumns - width) * 32) / 100, 0, 1);
 
     const absoluteOffsetY = -cellYOffset * 32 + translateY;
     const opacityY = !fixedShadowY ? 0 : clamp(-absoluteOffsetY / 100, 0, 1);
 
     const stickyShadow = React.useMemo(() => {
-        if (!opacityX && !opacityY) {
+        if (!opacityXLeft && !opacityY && !opacityXRight) {
             return null;
         }
 
-        const styleX: React.CSSProperties = {
+        const transition = "opacity 0.2s";
+
+        const styleXLeft: React.CSSProperties = {
             position: "absolute",
             top: 0,
-            left: stickyX,
-            width: width - stickyX,
+            left: stickyX[0],
+            width: width - stickyX[0],
             height: height,
-            opacity: opacityX,
+            opacity: opacityXLeft,
             pointerEvents: "none",
-            transition: !smoothScrollX ? "opacity 0.2s" : undefined,
+            transition: !smoothScrollX ? transition : undefined,
             boxShadow: "inset 13px 0 10px -13px rgba(0, 0, 0, 0.2)",
+        };
+
+        const styleXRight: React.CSSProperties = {
+            position: "absolute",
+            top: 0,
+            right: stickyX[1],
+            width: width - stickyX[1],
+            height: height,
+            opacity: opacityXRight,
+            pointerEvents: "none",
+            transition: !smoothScrollX ? transition : undefined,
+            boxShadow: "inset -13px 0 10px -13px rgba(0, 0, 0, 0.2)",
         };
 
         const styleY: React.CSSProperties = {
@@ -1886,17 +1917,28 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
             height: height,
             opacity: opacityY,
             pointerEvents: "none",
-            transition: !smoothScrollY ? "opacity 0.2s" : undefined,
+            transition: !smoothScrollY ? transition : undefined,
             boxShadow: "inset 0 13px 10px -13px rgba(0, 0, 0, 0.2)",
         };
 
         return (
             <>
-                {opacityX > 0 && <div id="shadow-x" style={styleX} />}
+                {opacityXLeft > 0 && <div id="shadow-x" style={styleXLeft} />}
+                {opacityXRight > 0 && <div id="shadow-x" style={styleXRight} />}
                 {opacityY > 0 && <div id="shadow-y" style={styleY} />}
             </>
         );
-    }, [opacityX, opacityY, stickyX, width, smoothScrollX, totalHeaderHeight, height, smoothScrollY]);
+    }, [
+        opacityXLeft,
+        opacityY,
+        stickyX,
+        width,
+        smoothScrollX,
+        totalHeaderHeight,
+        height,
+        smoothScrollY,
+        opacityXRight,
+    ]);
 
     const overlayStyle = React.useMemo<React.CSSProperties>(
         () => ({

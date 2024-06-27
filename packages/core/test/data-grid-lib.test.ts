@@ -1,22 +1,29 @@
 /* eslint-disable sonarjs/no-duplicate-string */
-import type { BaseDrawArgs } from "../src/index.js";
+import { beforeEach, describe, expect, it, test, vi, type Mocked } from "vitest";
+import { drawImage } from "../src/cells/image-cell.js";
 import { getDataEditorTheme, mergeAndRealizeTheme, type FullTheme } from "../src/common/styles.js";
+import type { BaseDrawArgs } from "../src/index.js";
+import { GridCellKind, type Rectangle } from "../src/internal/data-grid/data-grid-types.js";
+import type { ImageWindowLoader } from "../src/internal/data-grid/image-window-loader-interface.js";
 import {
+    drawLastUpdateUnderlay,
     remapForDnDState,
     type MappedGridColumn,
-    drawLastUpdateUnderlay,
 } from "../src/internal/data-grid/render/data-grid-lib.js";
-import { GridCellKind, type Rectangle } from "../src/internal/data-grid/data-grid-types.js";
-import { vi, type Mocked, expect, describe, test, it, beforeEach } from "vitest";
-import { drawImage } from "../src/cells/image-cell.js";
-import type { ImageWindowLoader } from "../src/internal/data-grid/image-window-loader-interface.js";
 
-function makeCol(title: string, sourceIndex: number, sticky: boolean, width: number): MappedGridColumn {
+function makeCol(
+    title: string,
+    sourceIndex: number,
+    sticky: boolean,
+    width: number,
+    stickyPosition: "left" | "right" | undefined
+): MappedGridColumn {
     return {
         title,
         sourceIndex,
         sticky,
         width,
+        stickyPosition,
         group: undefined,
         grow: undefined,
         headerRowMarkerAlwaysVisible: undefined,
@@ -39,9 +46,9 @@ function makeCol(title: string, sourceIndex: number, sticky: boolean, width: num
 
 describe("remapForDnDState", () => {
     const sampleColumns: MappedGridColumn[] = [
-        makeCol("Column 1", 0, true, 50),
-        makeCol("Column 2", 1, false, 60),
-        makeCol("Column 3", 2, true, 70),
+        makeCol("Column 1", 0, true, 50, "left"),
+        makeCol("Column 2", 1, false, 60, "left"),
+        makeCol("Column 3", 2, true, 70, "left"),
     ];
 
     it("should return the same array if dndState is undefined", () => {
@@ -78,6 +85,7 @@ describe("remapForDnDState", () => {
         const result = remapForDnDState(sampleColumns, { src: 0, dest: 2 });
         for (const [index, column] of sampleColumns.entries()) {
             expect(result[index].sticky).toEqual(column.sticky);
+            expect(result[index].stickyPosition).toEqual(column.stickyPosition);
         }
     });
 });

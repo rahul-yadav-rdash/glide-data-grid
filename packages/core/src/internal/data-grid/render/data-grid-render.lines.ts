@@ -1,14 +1,14 @@
 /* eslint-disable sonarjs/no-duplicate-string */
 /* eslint-disable unicorn/no-for-loop */
-import { type Rectangle, CompactSelection } from "../data-grid-types.js";
-import { CellSet } from "../cell-set.js";
 import groupBy from "lodash/groupBy.js";
-import { getStickyWidth, type MappedGridColumn, getFreezeTrailingHeight } from "./data-grid-lib.js";
-import { mergeAndRealizeTheme, type FullTheme } from "../../../common/styles.js";
-import { blendCache } from "../color-parser.js";
 import { intersectRect } from "../../../common/math.js";
-import { getSkipPoint, walkColumns, walkRowsInCol } from "./data-grid-render.walk.js";
+import { mergeAndRealizeTheme, type FullTheme } from "../../../common/styles.js";
+import { CellSet } from "../cell-set.js";
+import { blendCache } from "../color-parser.js";
+import { CompactSelection, type Rectangle } from "../data-grid-types.js";
+import { getFreezeTrailingHeight, getStickyWidth, type MappedGridColumn } from "./data-grid-lib.js";
 import { type GetRowThemeCallback } from "./data-grid-render.cells.js";
+import { getSkipPoint, walkColumns, walkRowsInCol } from "./data-grid-render.walk.js";
 
 export function drawBlanks(
     ctx: CanvasRenderingContext2D,
@@ -123,15 +123,24 @@ export function overdrawStickyBoundaries(
     }
     const hColor = theme.horizontalBorderColor ?? theme.borderColor;
     const vColor = theme.borderColor;
-    const drawX = drawFreezeBorder ? getStickyWidth(effectiveCols) : 0;
+    const [drawXLeft, drawXRight] = drawFreezeBorder ? getStickyWidth(effectiveCols) : [0, 0];
 
     let vStroke: string | undefined;
-    if (drawX !== 0) {
+    if (drawXLeft !== 0) {
         vStroke = blendCache(vColor, theme.bgCell);
         ctx.beginPath();
-        ctx.moveTo(drawX + 0.5, 0);
-        ctx.lineTo(drawX + 0.5, height);
+        ctx.moveTo(drawXLeft + 0.5, 0);
+        ctx.lineTo(drawXLeft + 0.5, height);
         ctx.strokeStyle = vStroke;
+        ctx.stroke();
+    }
+
+    if (drawXRight !== 0) {
+        const hStroke = vColor === hColor && vStroke !== undefined ? vStroke : blendCache(hColor, theme.bgCell);
+        ctx.beginPath();
+        ctx.moveTo(width - drawXRight + 0.5, 0);
+        ctx.lineTo(width - drawXRight + 0.5, height);
+        ctx.strokeStyle = hStroke;
         ctx.stroke();
     }
 
@@ -331,6 +340,24 @@ export function drawGridLines(
             });
         }
     }
+
+    // let rightX = 0.5;
+    // for (let index = effectiveCols.length - 1; index >= 0; index--) {
+    //     const c = effectiveCols[index];
+    //     if (c.width === 0) continue;
+    //     if (!c.sticky) break;
+    //     rightX += c.width;
+    //     const tx = c.sticky ? rightX : rightX + translateX;
+    //     if (tx >= minX && tx <= maxX && verticalBorder(index + 1)) {
+    //         toDraw.push({
+    //             x1: tx,
+    //             y1: Math.max(groupHeaderHeight, minY),
+    //             x2: tx,
+    //             y2: Math.min(height, maxY),
+    //             color: vColor,
+    //         });
+    //     }
+    // }
 
     let freezeY = height + 0.5;
     for (let i = rows - freezeTrailingRows; i < rows; i++) {

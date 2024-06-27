@@ -1,12 +1,12 @@
 /* eslint-disable sonarjs/no-duplicate-string */
 /* eslint-disable unicorn/no-for-loop */
-import { type GridSelection, type InnerGridCell, type Item } from "../data-grid-types.js";
-import { getStickyWidth, type MappedGridColumn, computeBounds, getFreezeTrailingHeight } from "./data-grid-lib.js";
+import { hugRectToTarget, intersectRect, rectContains, splitRectIntoRegions } from "../../../common/math.js";
 import { type FullTheme } from "../../../common/styles.js";
 import { blend, withAlpha } from "../color-parser.js";
-import { hugRectToTarget, intersectRect, rectContains, splitRectIntoRegions } from "../../../common/math.js";
-import { getSpanBounds, walkColumns, walkRowsInCol } from "./data-grid-render.walk.js";
+import { type GridSelection, type InnerGridCell, type Item } from "../data-grid-types.js";
+import { computeBounds, getFreezeTrailingHeight, getStickyWidth, type MappedGridColumn } from "./data-grid-lib.js";
 import { type Highlight } from "./data-grid-render.cells.js";
+import { getSpanBounds, walkColumns, walkRowsInCol } from "./data-grid-render.walk.js";
 
 export function drawHighlightRings(
     ctx: CanvasRenderingContext2D,
@@ -17,7 +17,7 @@ export function drawHighlightRings(
     translateX: number,
     translateY: number,
     mappedColumns: readonly MappedGridColumn[],
-    freezeColumns: number,
+    freezeColumns: number | [left: number, right: number],
     headerHeight: number,
     groupHeaderHeight: number,
     rowHeight: number | ((index: number) => number),
@@ -27,19 +27,21 @@ export function drawHighlightRings(
     theme: FullTheme
 ): (() => void) | undefined {
     const highlightRegions = allHighlightRegions?.filter(x => x.style !== "no-outline");
+    const freezeLeftColumns = typeof freezeColumns === "number" ? freezeColumns : freezeColumns[0];
+    const freezeRightColumns = typeof freezeColumns === "number" ? 0 : freezeColumns[1];
 
     if (highlightRegions === undefined || highlightRegions.length === 0) return undefined;
 
-    const freezeLeft = getStickyWidth(mappedColumns);
+    const [freezeLeft, freezeRight] = getStickyWidth(mappedColumns);
     const freezeBottom = getFreezeTrailingHeight(rows, freezeTrailingRows, rowHeight);
-    const splitIndicies = [freezeColumns, 0, mappedColumns.length, rows - freezeTrailingRows] as const;
+    const splitIndices = [freezeLeftColumns, 0, mappedColumns.length, rows - freezeTrailingRows] as const;
     const splitLocations = [freezeLeft, 0, width, height - freezeBottom] as const;
 
     const drawRects = highlightRegions.map(h => {
         const r = h.range;
         const style = h.style ?? "dashed";
 
-        return splitRectIntoRegions(r, splitIndicies, width, height, splitLocations).map(arg => {
+        return splitRectIntoRegions(r, splitIndices, width, height, splitLocations).map(arg => {
             const rect = arg.rect;
             const topLeftBounds = computeBounds(
                 rect.x,

@@ -1,89 +1,89 @@
 /* eslint-disable sonarjs/no-duplicate-string */
-import * as React from "react";
-import { assert, assertNever, maybe } from "../common/support.js";
 import clamp from "lodash/clamp.js";
-import uniq from "lodash/uniq.js";
+import debounce from "lodash/debounce.js";
 import flatten from "lodash/flatten.js";
 import range from "lodash/range.js";
-import debounce from "lodash/debounce.js";
-import {
-    type EditableGridCell,
-    type GridCell,
-    GridCellKind,
-    type GridSelection,
-    isEditableGridCell,
-    type Rectangle,
-    isReadWriteCell,
-    type InnerGridCell,
-    InnerGridCellKind,
-    CompactSelection,
-    type Slice,
-    isInnerOnlyCell,
-    type ProvideEditorCallback,
-    type GridColumn,
-    isObjectEditorCallbackResult,
-    type Item,
-    type MarkerCell,
-    type ValidatedGridCell,
-    type ImageEditorType,
-    type CustomCell,
-    BooleanEmpty,
-    BooleanIndeterminate,
-    type FillHandleDirection,
-    type EditListItem,
-    type CellActiviationBehavior,
-} from "../internal/data-grid/data-grid-types.js";
-import DataGridSearch, { type DataGridSearchProps } from "../internal/data-grid-search/data-grid-search.js";
+import uniq from "lodash/uniq.js";
+import * as React from "react";
+import type { CellRenderer, CustomRenderer, InternalCellRenderer } from "../cells/cell-types.js";
 import { browserIsOSX } from "../common/browser-detect.js";
-import {
-    getDataEditorTheme,
-    makeCSSStyle,
-    type FullTheme,
-    type Theme,
-    ThemeContext,
-    mergeAndRealizeTheme,
-} from "../common/styles.js";
-import type { DataGridRef } from "../internal/data-grid/data-grid.js";
-import { getScrollBarWidth, useEventListener, whenDefined } from "../common/utils.js";
-import {
-    isGroupEqual,
-    itemsAreEqual,
-    itemIsInRect,
-    gridSelectionHasItem,
-    getFreezeTrailingHeight,
-} from "../internal/data-grid/render/data-grid-lib.js";
-import { GroupRename } from "./group-rename.js";
-import { measureColumn, useColumnSizer } from "./use-column-sizer.js";
 import { isHotkey } from "../common/is-hotkey.js";
-import { type SelectionBlending, useSelectionBehavior } from "../internal/data-grid/use-selection-behavior.js";
-import { useCellsForSelection } from "./use-cells-for-selection.js";
-import { unquote, expandSelection, copyToClipboard, toggleBoolean } from "./data-editor-fns.js";
-import { DataEditorContainer } from "../internal/data-editor-container/data-grid-container.js";
-import { useAutoscroll } from "./use-autoscroll.js";
-import type { CustomRenderer, CellRenderer, InternalCellRenderer } from "../cells/cell-types.js";
-import { decodeHTML, type CopyBuffer } from "./copy-paste.js";
-import { useRemAdjuster } from "./use-rem-adjuster.js";
-import { withAlpha } from "../internal/data-grid/color-parser.js";
 import { combineRects, getClosestRect, pointInRect } from "../common/math.js";
 import {
-    type HeaderClickedEventArgs,
-    type GroupHeaderClickedEventArgs,
+    ThemeContext,
+    getDataEditorTheme,
+    makeCSSStyle,
+    mergeAndRealizeTheme,
+    type FullTheme,
+    type Theme,
+} from "../common/styles.js";
+import { assert, assertNever, maybe } from "../common/support.js";
+import { getScrollBarWidth, useEventListener, whenDefined } from "../common/utils.js";
+import { DataEditorContainer } from "../internal/data-editor-container/data-grid-container.js";
+import DataGridSearch, { type DataGridSearchProps } from "../internal/data-grid-search/data-grid-search.js";
+import { withAlpha } from "../internal/data-grid/color-parser.js";
+import {
+    BooleanEmpty,
+    BooleanIndeterminate,
+    CompactSelection,
+    GridCellKind,
+    InnerGridCellKind,
+    isEditableGridCell,
+    isInnerOnlyCell,
+    isObjectEditorCallbackResult,
+    isReadWriteCell,
+    type CellActiviationBehavior,
+    type CustomCell,
+    type EditListItem,
+    type EditableGridCell,
+    type FillHandleDirection,
+    type GridCell,
+    type GridColumn,
+    type GridSelection,
+    type ImageEditorType,
+    type InnerGridCell,
+    type Item,
+    type MarkerCell,
+    type ProvideEditorCallback,
+    type Rectangle,
+    type Slice,
+    type ValidatedGridCell,
+} from "../internal/data-grid/data-grid-types.js";
+import type { DataGridRef } from "../internal/data-grid/data-grid.js";
+import {
+    groupHeaderKind,
+    headerKind,
+    mouseEventArgsAreEqual,
+    outOfBoundsKind,
     type CellClickedEventArgs,
     type FillPatternEventArgs,
-    type GridMouseEventArgs,
-    groupHeaderKind,
-    outOfBoundsKind,
-    type GridMouseCellEventArgs,
-    headerKind,
     type GridDragEventArgs,
-    mouseEventArgsAreEqual,
     type GridKeyEventArgs,
+    type GridMouseCellEventArgs,
+    type GridMouseEventArgs,
+    type GroupHeaderClickedEventArgs,
+    type HeaderClickedEventArgs,
 } from "../internal/data-grid/event-args.js";
-import { type Keybinds, useKeybindingsWithDefaults } from "./data-editor-keybindings.js";
+import {
+    getFreezeTrailingHeight,
+    gridSelectionHasItem,
+    isGroupEqual,
+    itemIsInRect,
+    itemsAreEqual,
+} from "../internal/data-grid/render/data-grid-lib.js";
 import type { Highlight } from "../internal/data-grid/render/data-grid-render.cells.js";
-import { useRowGroupingInner, type RowGroupingOptions } from "./row-grouping.js";
+import { useSelectionBehavior, type SelectionBlending } from "../internal/data-grid/use-selection-behavior.js";
+import { decodeHTML, type CopyBuffer } from "./copy-paste.js";
+import { copyToClipboard, expandSelection, toggleBoolean, unquote } from "./data-editor-fns.js";
+import { useKeybindingsWithDefaults, type Keybinds } from "./data-editor-keybindings.js";
+import { GroupRename } from "./group-rename.js";
 import { useRowGrouping } from "./row-grouping-api.js";
+import { useRowGroupingInner, type RowGroupingOptions } from "./row-grouping.js";
+import { useAutoscroll } from "./use-autoscroll.js";
+import { useCellsForSelection } from "./use-cells-for-selection.js";
+import { measureColumn, useColumnSizer } from "./use-column-sizer.js";
 import { useInitialScrollOffset } from "./use-initial-scroll-offset.js";
+import { useRemAdjuster } from "./use-rem-adjuster.js";
 import type { VisibleRegion } from "./visible-region.js";
 
 const DataGridOverlayEditor = React.lazy(
@@ -807,7 +807,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         onMouseMove,
         onPaste,
         copyHeaders = false,
-        freezeColumns = 0,
+        freezeColumns = [0, 0],
         cellActivationBehavior = "second-click",
         rowSelectionMode = "auto",
         onHeaderMenuClick,
@@ -883,6 +883,9 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
     const minColumnWidth = Math.max(minColumnWidthIn, 20);
     const maxColumnWidth = Math.max(maxColumnWidthIn, minColumnWidth);
     const maxColumnAutoWidth = Math.max(maxColumnAutoWidthIn ?? maxColumnWidth, minColumnWidth);
+
+    const freezeLeftColumns = typeof freezeColumns === "number" ? freezeColumns : freezeColumns[0];
+    const freezeRightColumns = typeof freezeColumns === "number" ? 0 : freezeColumns[1];
 
     const docStyle = React.useMemo(() => {
         if (typeof window === "undefined") return { fontSize: "16px" };
@@ -1533,10 +1536,16 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                             height: targetRect.height + 2 * paddingY,
                         };
 
-                        let frozenWidth = 0;
-                        for (let i = 0; i < freezeColumns; i++) {
-                            frozenWidth += columns[i].width;
+                        let frozenLeftWidth = 0;
+                        for (let i = 0; i < freezeLeftColumns; i++) {
+                            frozenLeftWidth += columns[i].width;
                         }
+
+                        let frozenRightWidth = 0;
+                        for (let i = mangledCols.length - 1; i >= mangledCols.length - freezeRightColumns; i--) {
+                            frozenRightWidth += columns[i].width;
+                        }
+
                         let trailingRowHeight = 0;
                         const freezeTrailingRowsEffective = freezeTrailingRows + (lastRowSticky ? 1 : 0);
                         if (freezeTrailingRowsEffective > 0) {
@@ -1548,8 +1557,9 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                         }
 
                         // scrollBounds is already scaled
-                        let sLeft = frozenWidth * scale + scrollBounds.left + rowMarkerOffset * rowMarkerWidth * scale;
-                        let sRight = scrollBounds.right;
+                        let sLeft =
+                            frozenLeftWidth * scale + scrollBounds.left + rowMarkerOffset * rowMarkerWidth * scale;
+                        let sRight = scrollBounds.right - frozenRightWidth * scale;
                         let sTop = scrollBounds.top + totalHeaderHeight * scale;
                         let sBottom = scrollBounds.bottom - trailingRowHeight * scale;
 
@@ -1593,7 +1603,11 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                             scrollY = bounds.y + bounds.height - sBottom;
                         }
 
-                        if (dir === "vertical" || (typeof col === "number" && col < freezeColumns)) {
+                        if (
+                            dir === "vertical" ||
+                            (typeof col === "number" &&
+                                (col < freezeLeftColumns || col >= mangledCols.length - freezeRightColumns))
+                        ) {
                             scrollX = 0;
                         } else if (
                             dir === "horizontal" ||
@@ -1623,11 +1637,13 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             rowMarkerWidth,
             scrollRef,
             totalHeaderHeight,
-            freezeColumns,
+            freezeLeftColumns,
             columns,
             mangledRows,
             lastRowSticky,
             rowHeight,
+            freezeRightColumns,
+            mangledCols.length,
         ]
     );
 
@@ -2468,18 +2484,30 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                 selected = [selected[0] - rowMarkerOffset, selected[1]];
             }
 
-            const freezeRegion =
-                freezeColumns === 0
+            const freezeLeftRegion =
+                freezeLeftColumns === 0
                     ? undefined
                     : {
                           x: 0,
                           y: region.y,
-                          width: freezeColumns,
+                          width: freezeLeftColumns,
+                          height: region.height,
+                      };
+
+            const freezeRightRegion =
+                freezeRightColumns === 0
+                    ? undefined
+                    : {
+                          x: columns.length - freezeRightColumns,
+                          y: region.y,
+                          width: freezeRightColumns,
                           height: region.height,
                       };
 
             const freezeRegions: Rectangle[] = [];
-            if (freezeRegion !== undefined) freezeRegions.push(freezeRegion);
+            if (freezeLeftRegion !== undefined) freezeRegions.push(freezeLeftRegion);
+            if (freezeRightRegion !== undefined) freezeRegions.push(freezeRightRegion);
+
             if (freezeTrailingRows > 0) {
                 freezeRegions.push({
                     x: region.x - rowMarkerOffset,
@@ -2488,11 +2516,20 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     height: freezeTrailingRows,
                 });
 
-                if (freezeColumns > 0) {
+                if (freezeLeftColumns > 0) {
                     freezeRegions.push({
                         x: 0,
                         y: rows - freezeTrailingRows,
-                        width: freezeColumns,
+                        width: freezeLeftColumns,
+                        height: freezeTrailingRows,
+                    });
+                }
+
+                if (freezeRightColumns > 0) {
+                    freezeRegions.push({
+                        x: columns.length - freezeRightColumns,
+                        y: rows - freezeTrailingRows,
+                        width: freezeRightColumns,
                         height: freezeTrailingRows,
                     });
                 }
@@ -2507,7 +2544,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                 ty,
                 extras: {
                     selected,
-                    freezeRegion,
+                    freezeRegion: freezeLeftRegion,
                     freezeRegions,
                 },
             };
@@ -2521,10 +2558,12 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
             rowMarkerOffset,
             showTrailingBlankRow,
             rows,
-            freezeColumns,
+            freezeLeftColumns,
+            freezeRightColumns,
             freezeTrailingRows,
             setVisibleRegion,
             onVisibleRegionChanged,
+            columns.length,
         ]
     );
 
@@ -3817,7 +3856,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
         );
     }, [onGroupHeaderRenamed, renameGroup]);
 
-    const mangledFreezeColumns = Math.min(mangledCols.length, freezeColumns + (hasRowMarkers ? 1 : 0));
+    const mangledFreezeColumns = Math.min(mangledCols.length, freezeLeftColumns + (hasRowMarkers ? 1 : 0));
 
     React.useImperativeHandle(
         forwardedRef,
@@ -4055,7 +4094,7 @@ const DataEditorImpl: React.ForwardRefRenderFunction<DataEditorRef, DataEditorPr
                     onColumnProposeMove={onColumnProposeMove}
                     drawCell={drawCell}
                     disabledRows={disabledRows}
-                    freezeColumns={mangledFreezeColumns}
+                    freezeColumns={[mangledFreezeColumns, freezeRightColumns]}
                     lockColumns={rowMarkerOffset}
                     firstColAccessible={rowMarkerOffset === 0}
                     getCellContent={getMangledCellContent}
