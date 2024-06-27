@@ -4,6 +4,7 @@ import {
     computeBounds,
     getColumnIndexForX,
     getEffectiveColumns,
+    getFreezeTrailingHeight,
     getRowIndexForY,
     getStickyWidth,
     rectBottomRight,
@@ -1860,11 +1861,16 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
 
     const absoluteOffsetY = -cellYOffset * 32 + translateY;
     const opacityY = !fixedShadowY ? 0 : clamp(-absoluteOffsetY / 100, 0, 1);
+    const opacityTrailingRow = 1 - opacityY;
+
+    console.log(cellYOffset, translateY)
 
     const stickyShadow = React.useMemo(() => {
         if (!opacityX && !opacityY) {
             return null;
         }
+
+        const freezeTrailingHeight = getFreezeTrailingHeight(rows, freezeTrailingRows, rowHeight);
 
         const styleX: React.CSSProperties = {
             position: "absolute",
@@ -1890,13 +1896,26 @@ const DataGrid: React.ForwardRefRenderFunction<DataGridRef, DataGridProps> = (p,
             boxShadow: "inset 0 13px 10px -13px rgba(0, 0, 0, 0.2)",
         };
 
+        const styleTrailingRow: React.CSSProperties = {
+            position: "absolute",
+            top: height - freezeTrailingHeight,
+            left: 0,
+            width: width,
+            height: freezeTrailingHeight,
+            opacity: opacityY,
+            pointerEvents: "none",
+            transition: !smoothScrollY ? "opacity 0.2s" : undefined,
+            boxShadow: "rgba(0, 0, 0, 0.2) 0px 4px 13px 0px",
+        };
+
         return (
             <>
                 {opacityX > 0 && <div id="shadow-x" style={styleX} />}
                 {opacityY > 0 && <div id="shadow-y" style={styleY} />}
+                {opacityY > 0 && <div id="shadow-trailing-row" style={styleTrailingRow} />}
             </>
         );
-    }, [opacityX, opacityY, stickyX, width, smoothScrollX, totalHeaderHeight, height, smoothScrollY]);
+    }, [opacityX, opacityY, stickyX, width, smoothScrollX, totalHeaderHeight, height, smoothScrollY, freezeTrailingRows, rows, rowHeight, opacityTrailingRow]);
 
     const overlayStyle = React.useMemo<React.CSSProperties>(
         () => ({
